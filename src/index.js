@@ -1,4 +1,4 @@
-const PLACEHOLDER_PLANS = [
+const generateMocks = (primaryRing) => [
   {
     statement: "Average count of contributions per contributor",
     parameters: [],
@@ -12,7 +12,7 @@ const PLACEHOLDER_PLANS = [
         entity: "Contributor",
         field: "id"
       },
-      rings: [this.primaryRing],
+      rings: [primaryRing],
       relationships: ["ContribToContributor"] // how to relate contributions to contributors
     }
   },
@@ -33,7 +33,7 @@ const PLACEHOLDER_PLANS = [
         entity: "Contribution",
         field: "inState"
       }],
-      rings: [this.primaryRing],
+      rings: [primaryRing],
       relationships: ["ContribToContributor"]
     }
   },
@@ -63,7 +63,7 @@ const PLACEHOLDER_PLANS = [
         entity: "Contribution",
         field: "inState"
       }],
-      rings: [this.primaryRing],
+      rings: [primaryRing],
       relationships: ["ContribToCandidacy", "CandidacyToParty"]
     }
   },
@@ -98,7 +98,7 @@ const PLACEHOLDER_PLANS = [
         entity: "Contribution",
         field: "id"
       },
-      rings: [this.primaryRing],
+      rings: [primaryRing],
       relationships: []
     }
   },
@@ -133,7 +133,7 @@ const PLACEHOLDER_PLANS = [
         entity: "Contribution",
         field: "id"
       },
-      rings: [this.primaryRing],
+      rings: [primaryRing],
       relationships: []
     }
   }
@@ -192,7 +192,7 @@ class PlanManager {
 
     // TEMP HACK: add some additional more complex plans during dev
     // TODO: pull out once stuff above is working better
-    this.plans = [...this.plans, ...PLACEHOLDER_PLANS]
+    this.plans = [...this.plans, ...generateMocks()]
 
     return this.plans
   }
