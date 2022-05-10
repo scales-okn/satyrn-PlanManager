@@ -227,17 +227,54 @@ class PlanManager {
 
       // now add the timeframes
       // TODO
+
       // Note: Time series has an optional parameter of granularity or it's baked into the statement
         // - maybe it's "over time" and then always a second param?
 
       // now add the groupings
       // TODO
+      planSet = [...planSet, ...planSet.map(ps => {
+        let groupedPlans = []
+        const planTemplate = JSON.parse(JSON.stringify(ps))
+        // What can the targetEntity be grouped by?
+        // First, are we "on" the targetEntity or a related entity? get the details
+        const asDetails = (this.targetEntity === ps.target.entity) ?
+          ["_self", this.analysisSpace["_self"]] : Object.entries(this.analysisSpace).find(asPair => asPair[1].entity === ps.target.entity)
+        // if not _self, what's the relationship to the target?
+        // if m2o, direct group bys (e.g. contributors grouped by contribution) don't make sense
+        // TODO: should this be permutations of all relationships across all entities? if so, we're going to need to rejigger analysisSpace
+        if (asDetails[0] != "_self") {
+          if (!["m2o", "o2o"].includes(asDetails[1].relType)) {
+            // make a plan copy and group by the related entity + id
+            groupedPlans.push({...planTemplate, groupBy: [{
+              entity: self.targetEntity,
+              field: "id"
+            }]})
+          }
+        }
 
+        if (asDetails[0] === "_self" || !["m2o", "o2o"].includes(asDetails[1].relType)) {
+          // pluck enums / booleans on either related entity OR self (depending on above)
+          // TODO: strings? numbers? buckets?
+          groupedPlans = [...groupedPlans, ...this._generateGroupsFor(this.targetEntity, asDetails[1].attributes, planTemplate)]
+        }
+
+        return groupedPlans
+      }).flat()]
       return planSet
     }).flat()
-
     return basePlans
   }
+
+  _generateGroupsFor = (entity, attributes, planTemplate, groupers=["boolean", "enum"]) =>
+    attributes.filter(attr => groupers.includes(attr.type))
+      .map(attr => {
+        return {...planTemplate, groupBy: [{
+          entity: entity,
+          field: attr.targetField
+        }]}
+      })
+
   expressPlan = (plan) => {
     let opTemplate = this.nicenameMap.operations[plan.op]
     const pluralPicker = (["count"].includes(plan.op)) ? 1 : 0;
@@ -246,9 +283,25 @@ class PlanManager {
       if (match[1] == "target") {
         opTemplate = opTemplate.replace(match[0], this.nicenameMap.fields[plan.target.entity][plan.target.field][pluralPicker])
       } else {
-        // TODO: implementation for other types of slot-fillers
+        console.log(match[1])
+        // TODO: implementation for other types of slot-fillers (e.g. plans with "per" slots)
       }
     })
+    // do we have timeframes or group bys to express?
+    // if (timeframe) {
+    //   TODO
+    // }
+
+    if (plan.groupBy) {
+      // might be multiple group bys so chain them...
+      const groupBys = plan.groupBy.map(gb =>
+        (gb.entity === plan.target.entity) ?
+        `grouped by ${this.nicenameMap.fields[gb.entity][gb.field][0]}`
+          : `grouped by ${this.nicenameMap.fields[gb.entity][gb.field]} of ${gb.entity}`
+      ).join(" ")
+      opTemplate = `${opTemplate} ${groupBys}`
+    }
+
     return opTemplate
   }
   genNicenameMap = (operations) => {
