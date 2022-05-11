@@ -1,3 +1,7 @@
+// KNOWN TODOS:
+// - multi-hop relationship chaining
+// - date granularity protections per-attribute
+
 const generateMocks = (primaryRing) => [
   {
     statement: "Average count of contributions per contributor",
@@ -226,18 +230,34 @@ class PlanManager {
       // TODO
 
       // now add the timeframes
-      // TODO
+      // do we have any relevant times we could use? add them in for each plan!
+      planSet = [...planSet, ...planSet.map(ps => {
+        const planTemplate = JSON.parse(JSON.stringify(ps))
+        let timeframePlans = []
+        // First, are we "on" the targetEntity or a related entity? get the details
+        const asDetails = (this.targetEntity === ps.target.entity) ?
+          ["_self", this.analysisSpace["_self"]] : Object.entries(this.analysisSpace).find(asPair => asPair[1].entity === ps.target.entity)
 
-      // Note: Time series has an optional parameter of granularity or it's baked into the statement
-        // - maybe it's "over time" and then always a second param?
+        if (asDetails[0] === "_self" || !["m2o", "o2o"].includes(asDetails[1].relType)) {
+          // pluck timeframes on either related entity OR self (depending on above)
+          timeframePlans = [...timeframePlans, ...this._generateTimeframesFor(this.targetEntity, asDetails[1].attributes, planTemplate)]
+        }
+        return timeframePlans
+      }).flat()]
 
       // now add the groupings
       // TODO
+      // debugger
       planSet = [...planSet, ...planSet.map(ps => {
         let groupedPlans = []
+        // try {
         const planTemplate = JSON.parse(JSON.stringify(ps))
+        // } catch (error) {
+        //   debugger
+        // }
         // What can the targetEntity be grouped by?
         // First, are we "on" the targetEntity or a related entity? get the details
+        // if (!ps.target) debugger
         const asDetails = (this.targetEntity === ps.target.entity) ?
           ["_self", this.analysisSpace["_self"]] : Object.entries(this.analysisSpace).find(asPair => asPair[1].entity === ps.target.entity)
         // if not _self, what's the relationship to the target?
@@ -256,7 +276,7 @@ class PlanManager {
         if (asDetails[0] === "_self" || !["m2o", "o2o"].includes(asDetails[1].relType)) {
           // pluck enums / booleans on either related entity OR self (depending on above)
           // TODO: strings? numbers? buckets?
-          groupedPlans = [...groupedPlans, ...this._generateGroupsFor(this.targetEntity, asDetails[1].attributes, planTemplate)]
+          groupedPlans = [...groupedPlans, ...this._generateGroupsFor(asDetails[1].entity, asDetails[1].attributes, planTemplate)]
         }
 
         return groupedPlans
@@ -275,6 +295,18 @@ class PlanManager {
         }]}
       })
 
+  _generateTimeframesFor = (entity, attributes, planTemplate, timeframes=["day", "month", "year", "dayofweek", "date", "onlymonth", "onlyday"]) =>
+    attributes.filter(attr => ["datetime"].includes(attr.type)) // TODO: others?
+      .map(attr =>
+        timeframes.map(tf => {
+          return {...planTemplate, "timeSeries": {
+            entity: entity,
+            field: attr.targetField,
+            dateTransform: tf
+          }}
+        })
+      ).flat()
+
   expressPlan = (plan) => {
     let opTemplate = this.nicenameMap.operations[plan.op]
     const pluralPicker = (["count"].includes(plan.op)) ? 1 : 0;
@@ -288,9 +320,15 @@ class PlanManager {
       }
     })
     // do we have timeframes or group bys to express?
-    // if (timeframe) {
-    //   TODO
-    // }
+
+    if (plan.timeSeries) {
+      const ts = plan.timeSeries
+      if (plan.target.entity === ts.entity) {
+        opTemplate = `${opTemplate} ${this.nicenameMap.timeframes[ts.dateTransform]} by ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
+      } else {
+        opTemplate = `${opTemplate} ${this.nicenameMap.timeframes[ts.dateTransform]} by ${ts.entity}'s ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
+      }
+    }
 
     if (plan.groupBy) {
       // might be multiple group bys so chain them...
@@ -320,9 +358,19 @@ class PlanManager {
       )
     )
 
+    const timeframes = {
+      day: "day-over-day",
+      month: "month-over-month",
+      year: "year-over-year",
+      dayofweek: "across weekdays",
+      onlymonth: "across months (over all years)",
+      onlyday: "across days days (over all years)"
+    }
+
     return {
       operations: operationsNicenames,
-      fields: fieldNicenames
+      fields: fieldNicenames,
+      timeframes: timeframes
     }
   }
   treatNicenames = (nicenames) => {
@@ -332,4 +380,4 @@ class PlanManager {
   }
 }
 
-export {Satyrn};
+// export {Satyrn};
