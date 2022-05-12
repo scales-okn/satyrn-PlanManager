@@ -188,10 +188,15 @@ class PlanManager {
     // plans should now be a big list of json objects
     // now populate the corresponding statements
     this.plans = plans.map(plan => {
-      return {
+      // pull the params up out of base plan...
+      const params = plan._parameters
+      delete plan._parameters
+      let fullPlan = {
         statement: this.expressPlan(plan),
         plan: plan
       }
+      if (params) fullPlan.parameters = params
+      return fullPlan
     })
 
     // TEMP HACK: add some additional more complex plans during dev
@@ -208,7 +213,8 @@ class PlanManager {
           entity: branchInfo.entity,
           field: attr.targetField,
         },
-        relationships: (relationship) ? [relationship] : []
+        relationships: (relationship) ? [relationship] : [],
+        _parameters: [] // gets plucked up a level for FE on the way out the door
       }
       let planSet = []
       ops.forEach(op => {
@@ -238,9 +244,13 @@ class PlanManager {
         const asDetails = (this.targetEntity === ps.target.entity) ?
           ["_self", this.analysisSpace["_self"]] : Object.entries(this.analysisSpace).find(asPair => asPair[1].entity === ps.target.entity)
 
+        const timeframeOptions = Object.entries(this.nicenameMap.timeframes).map(tfp => {
+          return {label: tfp[1], value: tfp[0]}
+        })
+
         if (asDetails[0] === "_self" || !["m2o", "o2o"].includes(asDetails[1].relType)) {
           // pluck timeframes on either related entity OR self (depending on above)
-          timeframePlans = [...timeframePlans, ...this._generateTimeframesFor(this.targetEntity, asDetails[1].attributes, planTemplate)]
+          timeframePlans = [...timeframePlans, ...this._generateTimeframesFor(this.targetEntity, asDetails[1].attributes, planTemplate, timeframeOptions)]
         }
         return timeframePlans
       }).flat()]
@@ -295,17 +305,27 @@ class PlanManager {
         }]}
       })
 
-  _generateTimeframesFor = (entity, attributes, planTemplate, timeframes=["day", "month", "year", "dayofweek", "date", "onlymonth", "onlyday"]) =>
+  _generateTimeframesFor = (entity, attributes, planTemplate, timeframeOptions) =>
     attributes.filter(attr => ["datetime"].includes(attr.type)) // TODO: others?
-      .map(attr =>
-        timeframes.map(tf => {
-          return {...planTemplate, "timeSeries": {
-            entity: entity,
-            field: attr.targetField,
-            dateTransform: tf
-          }}
-        })
-      ).flat()
+      .map(attr => {
+          let updatedPlan = {
+            ...planTemplate,
+            timeSeries: {
+              entity: entity,
+              field: attr.targetField,
+              dateTransform: "year" // year is the default, but can get changed in followup question
+            }}
+
+          updatedPlan._parameters.push({
+            type: "enum",
+            options: timeframeOptions,
+            slot: ["timeSeries", "dateTransform"],
+            prompt: "At what time granularity?",
+            allowMultiple: false
+          })
+
+          return updatedPlan
+        }).flat()
 
   expressPlan = (plan) => {
     let opTemplate = this.nicenameMap.operations[plan.op]
@@ -319,14 +339,16 @@ class PlanManager {
         // TODO: implementation for other types of slot-fillers (e.g. plans with "per" slots)
       }
     })
+
     // do we have timeframes or group bys to express?
 
+    // note: timeframes have been moved to follow-up questions, so timeframe is always "over time" now
     if (plan.timeSeries) {
       const ts = plan.timeSeries
       if (plan.target.entity === ts.entity) {
-        opTemplate = `${opTemplate} ${this.nicenameMap.timeframes[ts.dateTransform]} by ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
+        opTemplate = `${opTemplate} over time by ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
       } else {
-        opTemplate = `${opTemplate} ${this.nicenameMap.timeframes[ts.dateTransform]} by ${ts.entity}'s ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
+        opTemplate = `${opTemplate} over time by ${ts.entity}'s ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
       }
     }
 
@@ -380,4 +402,4 @@ class PlanManager {
   }
 }
 
-// export {Satyrn};
+export {Satyrn};
