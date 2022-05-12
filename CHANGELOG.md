@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.8](https://github.com/nu-c3lab/satyrn-PlanManager/compare/v0.0.7...v0.0.8) (2022-05-12)
+
+
+### Features
+
+* timeframes now included in plans + devhelper for plan exploration ([1921f3c](https://github.com/nu-c3lab/satyrn-PlanManager/commit/1921f3c4148e9deb0b1f20f188dff8acceae9c8e))
+
 ### [0.0.7](https://github.com/nu-c3lab/satyrn-PlanManager/compare/v0.0.4...v0.0.7) (2022-04-26)
 
 ### [0.0.4](https://github.com/nu-c3lab/satyrn-PlanManager/compare/v0.0.3...v0.0.4) (2022-01-19)
