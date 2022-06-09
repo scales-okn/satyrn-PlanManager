@@ -244,13 +244,13 @@ class PlanManager {
         const asDetails = (this.targetEntity === ps.target.entity) ?
           ["_self", this.analysisSpace["_self"]] : Object.entries(this.analysisSpace).find(asPair => asPair[1].entity === ps.target.entity)
 
-        const timeframeOptions = Object.entries(this.nicenameMap.timeframes).map(tfp => {
+        const defaultTimeframeOptions = Object.entries(this.nicenameMap.timeframes).map(tfp => {
           return {label: tfp[1], value: tfp[0]}
         })
 
         if (asDetails[0] === "_self" || !["m2o", "o2o"].includes(asDetails[1].relType)) {
           // pluck timeframes on either related entity OR self (depending on above)
-          timeframePlans = [...timeframePlans, ...this._generateTimeframesFor(this.targetEntity, asDetails[1].attributes, planTemplate, timeframeOptions)]
+          timeframePlans = [...timeframePlans, ...this._generateTimeframesFor(this.targetEntity, asDetails[1].attributes, planTemplate, defaultTimeframeOptions)]
         }
         return timeframePlans
       }).flat()]
@@ -305,20 +305,26 @@ class PlanManager {
         }]}
       })
 
-  _generateTimeframesFor = (entity, attributes, planTemplate, timeframeOptions) =>
-    attributes.filter(attr => ["datetime"].includes(attr.type)) // TODO: others?
+  _generateTimeframesFor = (entity, attributes, planTemplate, defaultTimeframeOptions) =>
+    attributes.filter(attr => ["datetime", "date", "date:year"].includes(attr.type)) // TODO: others?
       .map(attr => {
           let updatedPlan = {
-            ...planTemplate,
+            ...JSON.parse(JSON.stringify(planTemplate)),
             timeSeries: {
               entity: entity,
               field: attr.targetField,
               dateTransform: "year" // year is the default, but can get changed in followup question
             }}
 
+          let tfOptions = null
+          if (attr.type == "date:year") tfOptions = [{label: "year-over-year", value: "year"}]
+          if (attr.type == "date:month") tfOptions = [{label: "year-over-year", value: "year"}, {label: "month-over-month", value: "month"}]
+          // TODO: others?
+          if (!tfOptions) tfOptions = defaultTimeframeOptions
+
           updatedPlan._parameters.push({
             type: "enum",
-            options: timeframeOptions,
+            options: tfOptions,
             slot: ["timeSeries", "dateTransform"],
             prompt: "At what time granularity?",
             allowMultiple: false
