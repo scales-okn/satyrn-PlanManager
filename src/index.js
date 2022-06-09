@@ -79,7 +79,7 @@ const generateMocks = (primaryRing) => [
         slot: ["target", 1, "numerator"], // key path steps within plan -- in this case, list entry
         options: { // given type == "value", the options here point to an entity.attribute to pull possible values from, just like a filter input -- in this example, it's a bool but in other cases this could be a string e.g. judge.name with autocomplete
           entity: "Contribution",
-          attribute: "recipient",
+          attribute: "contributionRecipient",
         },
         prompt: "Which recipient(s) should be used to check for a correlation?",
         allowMultiple: true // could be a multiselect "and" or "or"
@@ -94,7 +94,7 @@ const generateMocks = (primaryRing) => [
         },
         {
           entity: "Contribution",
-          field: "recipient", // since this is a non-numeric, we need a numerator(s) selection via parameters
+          field: "contributionRecipient", // since this is a non-numeric, we need a numerator(s) selection via parameters
           numerator: null
         }
       ],
