@@ -1,6 +1,6 @@
 {
   "name": "statement-mananger",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "The Plan Manager package that supports plan generation, satisfying parameter requirements, and associated NLG",
   "main": "src",
   "private": true,

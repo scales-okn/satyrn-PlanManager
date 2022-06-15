@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.11](https://github.com/nu-c3lab/satyrn-PlanManager/compare/v0.0.10...v0.0.11) (2022-06-15)
+
+
+### Features
+
+* addition of generate and format methods on ResponseManager ([6029fb0](https://github.com/nu-c3lab/satyrn-PlanManager/commit/6029fb0e7a0c55be6cbbc6bea480fe11924bb29a))
+
 ### [0.0.10](https://github.com/nu-c3lab/satyrn-PlanManager/compare/v0.0.9...v0.0.10) (2022-06-09)
 
 
