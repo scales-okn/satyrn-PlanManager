@@ -1,46 +1,9 @@
 // KNOWN TODOS:
 // - multi-hop relationship chaining
 // - date granularity protections per-attribute
+// - implement distribution, correlation, percentage, and oneHot plan generation and results management (and remove the generateMocks hack)
 
 const generateMocks = (primaryRing) => [
-  {
-    statement: "Average count of contributions per contributor",
-    parameters: [],
-    plan: {
-      op: "averageCount",
-      target: {
-        entity: "Contribution",
-        field: "id"
-      },
-      per: {
-        entity: "Contributor",
-        field: "id"
-      },
-      rings: [primaryRing],
-      relationships: ["ContribToContributor"] // how to relate contributions to contributors
-    }
-  },
-  {
-    statement: "Average count of contributions per contributor grouped by in-state status",
-    parameters: [],
-    plan: {
-      op: "averageCount",
-      target: {
-        entity: "Contribution",
-        field: "id"
-      },
-      per: {
-        entity: "Contributor",
-        field: "id"
-      },
-      groupBy: [{ // now with a group by
-        entity: "Contribution",
-        field: "inState"
-      }],
-      rings: [primaryRing],
-      relationships: ["ContribToContributor"]
-    }
-  },
   {
     statement: "Distribution of contribution amount across party grouped by in-state status",
     parameters: [
@@ -151,13 +114,131 @@ class Satyrn {
     this.analysisSpace = analysisSpace
     this.primaryRing = primaryRing
     this.planManager = new PlanManager(targetEntity, operations, analysisSpace, primaryRing)
-    this.responseManager = new ResponseManager()
+    this.responseManager = new ResponseManager(this.planManager)
   }
 }
 
 class ResponseManager {
-  generate = (responsePayload) => {
-    return "Response payloads pending..."
+  constructor(planManager) {
+    this.planManager = planManager
+  }
+  generate = (searchFilters, plan, results) => {
+    // generates the desc for an answered question
+    // start with the statement from the dropdown
+    let desc = this.planManager.expressPlan(plan)
+    if (desc === "") return desc
+    // add filter info
+    if (!Object.keys(searchFilters).length) {
+      desc += " across all available data"
+    } else {
+      desc += " for data entries in which "
+
+      // this is going to be a bit of a hack for now as searchFilters in results
+      // apparently don't include the entity they're housed on
+      const attrExpressions = Object.assign({}, ...Object.entries(this.planManager.nicenameMap.fields).map(entry => entry[1]))
+
+      Object.entries(searchFilters).forEach((filt, idx) => {
+        if (idx != 0) desc += " and "
+        desc += `<em>${attrExpressions[filt[0]][0]}</em> contains <em>"${filt[1]}"</em>`
+      })
+    }
+
+    // also, append the results if there won't be any further info...
+    if (results.results.length === 0) {
+      desc += ` couldn't be generated.`
+    } else if (results.results.length === 1) {
+      const fresult = (isNaN(Number(results.results[0]))) ? results.units.results[0] : Number(results.results[0]).toLocaleString()
+      desc += ` is ${fresult}`
+      if (results.units?.results && !["count", "averageCount"].includes(plan.op)) desc += ` ${results.units.results[0]}`
+      desc += "."
+    } else {
+      desc += ":"
+    }
+
+    return desc
+  }
+  format = (plan, results) => {
+    // return null if there is no data to render because the generate() statement is covering it...
+    if (results.results.length < 2) return null
+    // okay, first check to see if the results have ids + references that need to be merged...
+    const merged = this.mergeIdsAndReferences(results.results, results.fieldNames)
+    const cleanResults = merged[0]
+    const cleanFields = merged[1]
+
+    let formattedResults = []
+    if (cleanResults[0].length === 2) {
+      // simple list of tuples, assume [label, value]
+      formattedResults = cleanResults.map(entry => {return {label: entry[0], value: entry[1]}})
+    } else if (cleanResults[0].length === 3) {
+      // list of 3 = assume [series/group, label, value]
+      let resultsMap = {}
+      cleanResults.forEach(entry => {
+        if (!(entry[0] in resultsMap)) resultsMap[entry[0]] = []
+        resultsMap[entry[0]].push({label: entry[1], value: entry[2]})
+      })
+      formattedResults = Object.entries(resultsMap).map(entry => {return {series: entry[0], data: entry[1]}})
+    } else {
+      // (results.results[0].length > 3) only happens with multi group bys
+      // come back and TODO
+      debugger
+      return null
+    }
+
+    return {
+      data: formattedResults,
+      visType: this.pickVisType(plan, formattedResults)
+    }
+  }
+  mergeIdsAndReferences = (results, fields) => {
+    // checks results[items] of 3 or more to see if two of the keys are really and id and reference for the same thing
+    // if found, merge them...
+    // results here is a list of tuples and fields is a list of objects of metadata
+    if (fields.length < 3) return [results, fields]
+    // do we have to merge?
+    // how many ids?
+    const idIndexes = fields.map(field => field.field).map((e, i) => e === "id" ? i : '').filter(String)
+    if (idIndexes.length === 0) return [results, fields]
+    // if ids, how many references?
+    const refIndexes = fields.map(field => field.field).map((e, i) => e === "reference" ? i : '').filter(String)
+    if (refIndexes.length === 0) return [results, fields]
+
+    // for every id index, check if the next thing is a refIndex
+    const matchedIds = idIndexes.filter((indx, i) => (refIndexes[i] === indx+1))
+    if (matchedIds.length === 0) return [results, fields]
+
+    // okay, so we have some merging to do in both all results entries + in fields
+    const newResults = results.map(result => {
+      matchedIds.forEach(idx => {
+        const merger = result.slice(idx, idx+2)
+        const replacer = `${merger[1]} (${merger[0]})`
+        result[idx] = replacer
+        result[idx+1] = "_PLACEHOLDER_"
+      })
+      return result.filter(step => step !== "_PLACEHOLDER_")
+    })
+
+    matchedIds.forEach(idx => {
+      const merger = fields.slice(idx, idx+2)
+      merger[1].field = "reference+id"
+      fields[idx] = merger[1]
+      fields[idx+1] = "_PLACEHOLDER_"
+    })
+
+    fields = fields.filter(step => step !== "_PLACEHOLDER_")
+
+    return [newResults, fields]
+  }
+
+  pickVisType = (plan, formattedResults) => {
+    // options currently are bar, line and multiline...maybe groupedBar, stackedBar, scatter, geoMap and more later?
+    // line or multiline if timeseries is present...
+    if (plan.timeSeries) {
+      // is there a group and data key in the entries? it's multiline
+      if (formattedResults[0].series) return "multiline"
+      return "line"
+    }
+    if (formattedResults[0].series) return "groupedBar"
+    return "bar"
   }
 }
 
@@ -222,14 +303,41 @@ class PlanManager {
         const requirements = this.operations[op].required
         if (!(requirements?.target?.validInputs || []).includes(attr.type)) return;
 
-        // next two are temp hacks -- skip ops that require more than a single target and/or parameters
-        // have to deal with percentage/correlations, average counts, etc
-        if ((requirements?.target?.parameters || []).length > 0) return;
-        if (Object.keys(requirements).length > 1 || !Object.keys(requirements).includes("target")) return;
+        // are there "per" fields to add?
+        if (Object.keys(requirements).includes("per")) {
+          // per fields always use relationships
+          if (!relationship) {
+            // means this is the target entity
+            // iterate over the rest of the self.analysisSpace keys besides self
+            // if relationship type makes sense (e.g. "m2m" or "m2o"), then add a plan
+            Object.entries(this.analysisSpace)
+              .filter(entry => !(entry[0] === "_self"))
+              .filter(entry => ["m2o","m2m"].includes(entry[1].relType))
+              .forEach(entry => {
+                planSet.push(this._generateSpecialPlan("per", basePlanTemplate, op, entry))
+              })
+          } else {
+            // means this is a related entity to the target
+            // only tie this back to _self (the target)
+            // but only if relationship type makes sense the other way (e.g. "m2m" or "o2m")
+            Object.entries(this.analysisSpace)
+              .filter(entry => (entry[0] === "_self"))
+              .filter(entry => ["o2m","m2m"].includes(entry[1].relType))
+              .forEach(entry => {
+                planSet.push(this._generateSpecialPlan("per", basePlanTemplate, op, entry))
+              })
+          }
+        } else {
+          // just a one-off plan...finish/add it
 
-        let newPlan = JSON.parse(JSON.stringify(basePlanTemplate))
-        newPlan.op = op
-        planSet.push(newPlan)
+          // next one is a temp hack -- skip ops that require more than a single target and/or parameters
+          // have to deal with percentage/correlations, average counts, etc
+          if (["percentage", "distribution", "oneHot"].includes(op)) return;
+
+          let newPlan = JSON.parse(JSON.stringify(basePlanTemplate))
+          newPlan.op = op
+          planSet.push(newPlan)
+        }
       })
 
       // manage ops with additional requirements
@@ -333,13 +441,31 @@ class PlanManager {
           return updatedPlan
         }).flat()
 
+  _generateSpecialPlan = (planType, basePlanTemplate, op, branch) => {
+    let newPlan = JSON.parse(JSON.stringify(basePlanTemplate))
+    newPlan.op = op
+    if (planType == "per") {
+      newPlan.per = {
+        "field": "id",
+        "entity": branch[1].entity
+      }
+      newPlan.relationships.push(branch[0])
+    } else {
+      // others?
+    }
+    return newPlan
+  }
+
   expressPlan = (plan) => {
     let opTemplate = this.nicenameMap.operations[plan.op]
-    const pluralPicker = (["count"].includes(plan.op)) ? 1 : 0;
+    const pluralPicker = (["count", "averageCount", "averageSum"].includes(plan.op)) ? 1 : 0;
+
     if (!opTemplate) return null;
     [...opTemplate.matchAll(this.templateTokenMatcher)].forEach(match => {
       if (match[1] == "target") {
         opTemplate = opTemplate.replace(match[0], this.nicenameMap.fields[plan.target.entity][plan.target.field][pluralPicker])
+      } else if (match[1] == "per") {
+        opTemplate = opTemplate.replace(match[0], this.nicenameMap.fields[plan.per.entity][plan.per.field][0])
       } else {
         console.log(match[1])
         // TODO: implementation for other types of slot-fillers (e.g. plans with "per" slots)
@@ -352,19 +478,31 @@ class PlanManager {
     if (plan.timeSeries) {
       const ts = plan.timeSeries
       if (plan.target.entity === ts.entity) {
-        opTemplate = `${opTemplate} over time by ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
+        opTemplate = `${opTemplate} over time (by ${this.nicenameMap.fields[ts.entity][ts.field][0]})`
       } else {
-        opTemplate = `${opTemplate} over time by ${ts.entity}'s ${this.nicenameMap.fields[ts.entity][ts.field][0]}`
+        opTemplate = `${opTemplate} over time (by ${ts.entity}'s ${this.nicenameMap.fields[ts.entity][ts.field][0]})`
       }
     }
 
     if (plan.groupBy) {
       // might be multiple group bys so chain them...
-      const groupBys = plan.groupBy.map(gb =>
-        (gb.entity === plan.target.entity) ?
-        `grouped by ${this.nicenameMap.fields[gb.entity][gb.field][0]}`
-          : `grouped by ${this.nicenameMap.fields[gb.entity][gb.field]} of ${gb.entity}`
-      ).join(" ")
+      const groupBys = plan.groupBy.map(gb => {
+        let gbStatement = `grouped by ${this.nicenameMap.fields[gb.entity][gb.field][0]}`
+        if (gb.entity !== plan.target.entity) {
+          // maybe mention the fact the groupBy is across a different entity?
+          let entityMentionTest = true
+          const entityName = this.nicenameMap.fields[gb.entity].id[0]
+          // unless...
+          // a) that's already been stated (because it's already "group by <ENTITY NAME>")
+          if (gb.field === "id") entityMentionTest = false
+          // b) the "per" field involves the second entity (?)
+          if (gb.entity === plan.per?.entity) entityMentionTest = false
+          // c) the nicename of the attribute already mentions the entity
+          if (gbStatement.toLowerCase().search(entityName.toLowerCase())) entityMentionTest = false
+
+          if (entityMentionTest) gbStatement += ` (of ${entityName})`
+        }
+      }).join(" ")
       opTemplate = `${opTemplate} ${groupBys}`
     }
 
