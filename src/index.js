@@ -308,7 +308,7 @@ class PlanManager {
           // per fields always use relationships
           if (!relationship) {
             // means this is the target entity
-            // iterate over the rest of the self.analysisSpace keys besides self
+            // iterate over the rest of the this.analysisSpace keys besides self
             // if relationship type makes sense (e.g. "m2m" or "m2o"), then add a plan
             Object.entries(this.analysisSpace)
               .filter(entry => !(entry[0] === "_self"))
@@ -364,8 +364,6 @@ class PlanManager {
       }).flat()]
 
       // now add the groupings
-      // TODO
-      // debugger
       planSet = [...planSet, ...planSet.map(ps => {
         let groupedPlans = []
         // try {
@@ -385,7 +383,7 @@ class PlanManager {
           if (!["m2o", "o2o"].includes(asDetails[1].relType)) {
             // make a plan copy and group by the related entity + id
             groupedPlans.push({...planTemplate, groupBy: [{
-              entity: self.targetEntity,
+              entity: this.targetEntity,
               field: "id"
             }]})
           }
@@ -461,6 +459,7 @@ class PlanManager {
     const pluralPicker = (["count", "averageCount", "averageSum"].includes(plan.op)) ? 1 : 0;
 
     if (!opTemplate) return null;
+
     [...opTemplate.matchAll(this.templateTokenMatcher)].forEach(match => {
       if (match[1] == "target") {
         opTemplate = opTemplate.replace(match[0], this.nicenameMap.fields[plan.target.entity][plan.target.field][pluralPicker])
@@ -505,7 +504,6 @@ class PlanManager {
       }).join(" ")
       opTemplate = `${opTemplate} ${groupBys}`
     }
-
     return opTemplate
   }
   genNicenameMap = (operations) => {
