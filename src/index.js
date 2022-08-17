@@ -459,7 +459,6 @@ class PlanManager {
     const pluralPicker = (["count", "averageCount", "averageSum"].includes(plan.op)) ? 1 : 0;
 
     if (!opTemplate) return null;
-
     [...opTemplate.matchAll(this.templateTokenMatcher)].forEach(match => {
       if (match[1] == "target") {
         opTemplate = opTemplate.replace(match[0], this.nicenameMap.fields[plan.target.entity][plan.target.field][pluralPicker])
