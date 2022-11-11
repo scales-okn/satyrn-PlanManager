@@ -149,7 +149,7 @@ class ResponseManager {
     } else if (results.results.length === 1) {
       const fresult = (isNaN(Number(results.results[0]))) ? results.units.results[0] : Number(results.results[0]).toLocaleString()
       desc += ` is ${fresult}`
-      if (results.units?.results && !["count", "averageCount"].includes(plan.op)) desc += ` ${results.units.results[0]}`
+      if (results.units?.results && !["count", "averageCount"].includes(plan.op)) desc += ` ${results.units.results[1]}`
       desc += "."
     } else {
       desc += ":"
@@ -180,7 +180,7 @@ class ResponseManager {
     } else {
       // (results.results[0].length > 3) only happens with multi group bys
       // come back and TODO
-      debugger
+      // debugger
       return null
     }
 
@@ -282,7 +282,7 @@ class PlanManager {
 
     // TEMP HACK: add some additional more complex plans during dev
     // TODO: pull out once stuff above is working better
-    this.plans = [...this.plans, ...generateMocks()]
+    this.plans = [...this.plans]
 
     return this.plans
   }
@@ -344,7 +344,7 @@ class PlanManager {
       // TODO
 
       // now add the timeframes
-      // do we have any relevant times we could use? add them in for each plan!
+      // do we have any relevant times we could use? add them in for each plan
       planSet = [...planSet, ...planSet.map(ps => {
         const planTemplate = JSON.parse(JSON.stringify(ps))
         let timeframePlans = []
@@ -456,8 +456,8 @@ class PlanManager {
 
   expressPlan = (plan) => {
     let opTemplate = this.nicenameMap.operations[plan.op]
-    const pluralPicker = (["count", "averageCount", "averageSum"].includes(plan.op)) ? 1 : 0;
-
+    // const pluralPicker = (["count", "averageCount", "averageSum"].includes(plan.op)) ? 1 : 0;
+    const pluralPicker = 1;
     if (!opTemplate) return null;
     [...opTemplate.matchAll(this.templateTokenMatcher)].forEach(match => {
       if (match[1] == "target") {
@@ -500,6 +500,7 @@ class PlanManager {
 
           if (entityMentionTest) gbStatement += ` (of ${entityName})`
         }
+        return gbStatement
       }).join(" ")
       opTemplate = `${opTemplate} ${groupBys}`
     }
