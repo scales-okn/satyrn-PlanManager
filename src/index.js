@@ -28,7 +28,7 @@ class ResponseManager {
       // this is going to be a bit of a hack for now as searchFilters in results
       // apparently don't include the entity they're housed on
       const attrExpressions = Object.assign({}, ...Object.entries(this.planManager.nicenameMap.fields).map(entry => entry[1]))
-      const queryBundle = plan.query.AND
+      // const queryBundle = plan.query.AND
       Object.entries(searchFilters).forEach((filt, idx) => {
         // get the entity from the plan...
         // const queryPart = queryBundle.find(qb => qb[0]["field"] == filt[0])

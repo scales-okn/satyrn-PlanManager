@@ -1570,107 +1570,156 @@ const sampleRingFromAPI = {
     }
 }
 
-const sampleAnalysisOutputs = []
-// const sampleAnalysisOutputs = [
-//     {
-//         search_opts: {},
-//         analysis_opts: {
-//             "target": {
-//                 "entity": "Case",
-//                 "field": "monetary_demand"
-//             },
-//             "relationships": [],
-//             "op": "average"
-//         },
-//         expected_results: {
-//             "counts": {
-//                 "Case//id": 147554
-//             },
-//             "fieldNames": [
-//                 {
-//                     "entity": "Case",
-//                     "field": "monetary_demand",
-//                     "op": "average"
-//                 }
-//             ],
-//             "length": 1,
-//             "results": [
-//                 [
-//                     "847788607.28"
-//                 ]
-//             ],
-//             "units": {
-//                 "results": [
-//                     [
-//                         "dollar",
-//                         "dollars"
-//                     ]
-//                 ]
-//             },
-//             "genFilters": "null"
-//         }
-//     },
-//     {
-//         "search_opts": {
-//             "filing_date": [
-//                 "2021-10-29T05:00:00.000Z",
-//                 "2021-10-31T04:59:59.999Z"
-//             ]
-//         },
-//         "analysis_opts": {
-//             "target": {
-//                 "entity": "Case",
-//                 "field": "monetary_demand"
-//             },
-//             "relationships": [],
-//             "op": "average",
-//             "rings": [
-//                 "l7zvvfx0"
-//             ],
-//             "query": {
-//                 "AND": [
-//                     [
-//                         {
-//                             "entity": "Case",
-//                             "field": "filing_date"
-//                         },
-//                         [
-//                             "2021-10-29T05:00:00.000Z",
-//                             "2021-10-31T04:59:59.999Z"
-//                         ],
-//                         "contains"
-//                     ]
-//                 ]
-//             }
-//         },
-//         "expected_results": {
-//             "counts": {
-//                 "Case//id": 147554
-//             },
-//             "fieldNames": [
-//                 {
-//                     "entity": "Case",
-//                     "field": "monetary_demand",
-//                     "op": "average"
-//                 }
-//             ],
-//             "length": 1,
-//             "results": [
-//                 [
-//                     "847788607.28"
-//                 ]
-//             ],
-//             "units": {
-//                 "results": [
-//                     [
-//                         "dollar",
-//                         "dollars"
-//                     ]
-//                 ]
-//             },
-//             "genFilters": "[{\"id\":\"lad20hnr\",\"value\":[\"2021-10-29T05:00:00.000Z\",\"2021-10-31T04:59:59.999Z\"],\"type\":\"filing_date\"}]"
-//         }
-//     }
-// ]
+// const sampleAnalysisOutputs = []
+const sampleAnalysisOutputs = [
+    {
+        search_opts: {},
+        analysis_opts: {
+            "target": {
+                "entity": "Case",
+                "field": "monetary_demand"
+            },
+            "relationships": [],
+            "op": "average"
+        },
+        expected_results: {
+            "counts": {
+                "Case//id": 147554
+            },
+            "fieldNames": [
+                {
+                    "entity": "Case",
+                    "field": "monetary_demand",
+                    "op": "average"
+                }
+            ],
+            "length": 1,
+            "results": [
+                [
+                    "847788607.28"
+                ]
+            ],
+            "units": {
+                "results": [
+                    [
+                        "dollar",
+                        "dollars"
+                    ]
+                ]
+            },
+            "genFilters": "null"
+        }
+    },
+    {
+        "search_opts": {
+            "filing_date": [
+                "2021-10-29T05:00:00.000Z",
+                "2021-10-31T04:59:59.999Z"
+            ]
+        },
+        "analysis_opts": {
+            "target": {
+                "entity": "Case",
+                "field": "monetary_demand"
+            },
+            "relationships": [],
+            "op": "average",
+            "rings": [
+                "l7zvvfx0"
+            ],
+            "query": {
+                "AND": [
+                    [
+                        {
+                            "entity": "Case",
+                            "field": "filing_date"
+                        },
+                        [
+                            "2021-10-29T05:00:00.000Z",
+                            "2021-10-31T04:59:59.999Z"
+                        ],
+                        "contains"
+                    ]
+                ]
+            }
+        },
+        "expected_results": {
+            "counts": {
+                "Case//id": 147554
+            },
+            "fieldNames": [
+                {
+                    "entity": "Case",
+                    "field": "monetary_demand",
+                    "op": "average"
+                }
+            ],
+            "length": 1,
+            "results": [
+                [
+                    "847788607.28"
+                ]
+            ],
+            "units": {
+                "results": [
+                    [
+                        "dollar",
+                        "dollars"
+                    ]
+                ]
+            },
+            "genFilters": "[{\"id\":\"lad20hnr\",\"value\":[\"2021-10-29T05:00:00.000Z\",\"2021-10-31T04:59:59.999Z\"],\"type\":\"filing_date\"}]"
+        }
+    },
+    {
+        "search_opts": {
+            "filing_date": [
+                "2021-11-01T05:00:00.000Z",
+                "2021-11-22T05:59:59.999Z"
+            ]
+        },
+        "analysis_opts": {
+            "target": {
+                "entity": "Case",
+                "field": "monetary_demand"
+            },
+            "relationships": [
+                "CaseToJudge"
+            ],
+            "op": "averageSum",
+            "per": {
+                "field": "id",
+                "entity": "Judge"
+            }
+        },
+        "expected_results": {
+            "counts": {
+                "Case//id": 55
+            },
+            "fieldNames": [
+                {
+                    "entity": "Case",
+                    "field": "monetary_demand",
+                    "op": "average"
+                }
+            ],
+            "length": 1,
+            "results": [
+                [
+                    "9218138854.55"
+                ]
+            ],
+            "units": {
+                "results": [
+                    [
+                        "dollar",
+                        "dollars"
+                    ]
+                ]
+            },
+            "genFilters": "[{\"id\":\"lad784yh\",\"value\":[\"2021-11-01T05:00:00.000Z\",\"2021-11-22T05:59:59.999Z\"],\"type\":\"filing_date\"}]"
+        }
+    }
+]
 
 export {sampleRingFromAPI, sampleAnalysisOutputs}
