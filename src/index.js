@@ -1,112 +1,3 @@
-// KNOWN TODOS:
-// - multi-hop relationship chaining
-// - date granularity protections per-attribute
-// - implement distribution, correlation, percentage, and oneHot plan generation and results management (and remove the generateMocks hack)
-
-const generateMocks = (primaryRing) => [
-  {
-    statement: "Distribution of contribution amount across party grouped by in-state status",
-    parameters: [
-      { // this parameter type is to select from an enum of available aggregation types
-        type: "enum",
-        slot: ["target", "op"], // key path steps within plan
-        options: ["sum", "average"], // if plan.target.field is an id, then "count" would be here (maybe only option/default? @Andong: is None an option here?) -- in any event, this is the list of enum options to display
-        prompt: "How should contribution amounts be aggregated?",
-        allowMultiple: false
-      }
-    ],
-    plan: {
-      op: "distribution",
-      target: {
-        entity: "Contribution",
-        field: "amount",
-        op: null // this is satisfied by a parameter, see parameters key
-      },
-      over: {
-        entity: "Party",
-        field: "id"
-      },
-      groupBy: [{
-        entity: "Contribution",
-        field: "inState"
-      }],
-      rings: [primaryRing],
-      relationships: ["ContribToCandidacy", "CandidacyToParty"]
-    }
-  },
-  {
-    statement: "Correlation between contribution amount and contribution recipient",
-    parameters: [
-      { // this parameter type is to select from the set of possible values of the target attribute
-        type: "string",
-        slot: ["target", 1, "numerator"], // key path steps within plan -- in this case, list entry
-        options: { // given type == "value", the options here point to an entity.attribute to pull possible values from, just like a filter input -- in this example, it's a bool but in other cases this could be a string e.g. judge.name with autocomplete
-          entity: "Contribution",
-          attribute: "contributionRecipient",
-        },
-        prompt: "Which recipient(s) should be used to check for a correlation?",
-        allowMultiple: true // could be a multiselect "and" or "or"
-      }
-    ],
-    plan: {
-      op: "correlation",
-      target: [
-        {
-          entity: "Contribution",
-          field: "amount" // since this is a numeric, we don't need a numerator
-        },
-        {
-          entity: "Contribution",
-          field: "contributionRecipient", // since this is a non-numeric, we need a numerator(s) selection via parameters
-          numerator: null
-        }
-      ],
-      grouping: {
-        entity: "Contribution",
-        field: "id"
-      },
-      rings: [primaryRing],
-      relationships: []
-    }
-  },
-  {
-    statement: "Correlation between contribution amount and contribution in-state status",
-    parameters: [
-      { // this parameter type is to select from the set of possible values of the target attribute
-        type: "boolean",
-        slot: ["target", 1, "numerator"], // key path steps within plan -- in this case, list entry
-        options: { // given type == "value", the options here point to an entity.attribute to pull possible values from, just like a filter input -- in this example, it's a bool but in other cases this could be a string e.g. judge.name with autocomplete
-          entity: "Contribution",
-          attribute: "inState",
-        },
-        prompt: "What in-state status value should be used to check for a correlation?",
-        allowMultiple: true // could be a multiselect "and" or "or"
-      }
-    ],
-    plan: {
-      op: "correlation",
-      target: [ // @Andong: I moved the target and target2 into one list of targets (bonus side effect is this scales to more than two as we go forward), and put the numerator in the relevant object where necessary -- cool?
-        {
-          entity: "Contribution",
-          field: "amount" // since this is a numeric, we don't need a numerator
-        },
-        {
-          entity: "Contribution",
-          field: "inState", // since this is a non-numeric, we need a numerator(s) selection via parameters
-          numerator: null
-        }
-      ],
-      grouping: { // the grouping is implied by the fact that both attrs are attached to the same entity type -- if two entities involved, this setting would become a parameter (@Andong, gutcheck on that?)
-        entity: "Contribution",
-        field: "id"
-      },
-      rings: [primaryRing],
-      relationships: []
-    }
-  }
-]
-
-
 class Satyrn {
   constructor(targetEntity, operations, analysisSpace, primaryRing) {
     this.targetEntity = targetEntity
@@ -114,13 +5,14 @@ class Satyrn {
     this.analysisSpace = analysisSpace
     this.primaryRing = primaryRing
     this.planManager = new PlanManager(targetEntity, operations, analysisSpace, primaryRing)
-    this.responseManager = new ResponseManager(this.planManager)
+    this.responseManager = new ResponseManager(this.planManager, this.analysisSpace)
   }
 }
 
 class ResponseManager {
-  constructor(planManager) {
+  constructor(planManager, analysisSpace) {
     this.planManager = planManager
+    this.analysisSpace = analysisSpace
   }
   generate = (searchFilters, plan, results) => {
     // generates the desc for an answered question
@@ -136,20 +28,33 @@ class ResponseManager {
       // this is going to be a bit of a hack for now as searchFilters in results
       // apparently don't include the entity they're housed on
       const attrExpressions = Object.assign({}, ...Object.entries(this.planManager.nicenameMap.fields).map(entry => entry[1]))
-
+      const queryBundle = plan.query.AND
       Object.entries(searchFilters).forEach((filt, idx) => {
+        // get the entity from the plan...
+        // const queryPart = queryBundle.find(qb => qb[0]["field"] == filt[0])
+        // TODO: fix this next step so it works on any entity, not just _self
+        const filtMeta = this.analysisSpace._self.attributes.find(attr => attr.targetField == filt[0])
         if (idx != 0) desc += " and "
-        desc += `<em>${attrExpressions[filt[0]][0]}</em> contains <em>"${filt[1]}"</em>`
+        if (filtMeta && filtMeta.type == "date" && Array.isArray(filt[1]) && filt[1].length > 1) {
+          // debugger
+          desc += `<em>${attrExpressions[filt[0]][0]}</em> is between <em>${new Date(filt[1][0]).toLocaleDateString()}</em> and <em>${new Date(filt[1][1]).toLocaleDateString()}</em>`
+        } else {
+          desc += `<em>${attrExpressions[filt[0]][0]}</em> contains <em>"${filt[1]}"</em>`
+        }
       })
     }
 
     // also, append the results if there won't be any further info...
+    // this assumes only one result at a time -- will have to expand in future iterations
     if (results.results.length === 0) {
       desc += ` couldn't be generated.`
     } else if (results.results.length === 1) {
       const fresult = (isNaN(Number(results.results[0]))) ? results.units.results[0] : Number(results.results[0]).toLocaleString()
       desc += ` is ${fresult}`
-      if (results.units?.results && !["count", "averageCount"].includes(plan.op)) desc += ` ${results.units.results[1]}`
+
+      const isPluralBit = (results.units.results[0] && results.units.results[0].length > 1 && !["1", "-1", 1, -1].includes(fresult)) ? 1 : 0;
+
+      if (results.units?.results && results.units?.results[0] && !["count", "averageCount"].includes(plan.op)) desc += ` ${results.units.results[0][isPluralBit]}`
       desc += "."
     } else {
       desc += ":"
@@ -332,7 +237,7 @@ class PlanManager {
 
           // next one is a temp hack -- skip ops that require more than a single target and/or parameters
           // have to deal with percentage/correlations, average counts, etc
-          if (["percentage", "distribution", "oneHot"].includes(op)) return;
+          if (["percentage", "distribution", "summaryStatistics", "oneHot", "correlation"].includes(op)) return;
 
           let newPlan = JSON.parse(JSON.stringify(basePlanTemplate))
           newPlan.op = op
@@ -456,11 +361,12 @@ class PlanManager {
 
   expressPlan = (plan) => {
     let opTemplate = this.nicenameMap.operations[plan.op]
-    // const pluralPicker = (["count", "averageCount", "averageSum"].includes(plan.op)) ? 1 : 0;
-    const pluralPicker = 1;
+    const pluralPicker = (["count", "averageCount", "averageSum"].includes(plan.op)) ? 1 : 0;
+    // const pluralPicker = 1;
     if (!opTemplate) return null;
     [...opTemplate.matchAll(this.templateTokenMatcher)].forEach(match => {
       if (match[1] == "target") {
+        if (!this.nicenameMap.fields[plan.target.entity][plan.target.field]) debugger;
         opTemplate = opTemplate.replace(match[0], this.nicenameMap.fields[plan.target.entity][plan.target.field][pluralPicker])
       } else if (match[1] == "per") {
         opTemplate = opTemplate.replace(match[0], this.nicenameMap.fields[plan.per.entity][plan.per.field][0])
@@ -478,6 +384,7 @@ class PlanManager {
       if (plan.target.entity === ts.entity) {
         opTemplate = `${opTemplate} over time (by ${this.nicenameMap.fields[ts.entity][ts.field][0]})`
       } else {
+        // if (!this.nicenameMap.fields[ts.entity][ts.field]) debugger;
         opTemplate = `${opTemplate} over time (by ${ts.entity}'s ${this.nicenameMap.fields[ts.entity][ts.field][0]})`
       }
     }
