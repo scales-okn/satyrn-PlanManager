@@ -433,9 +433,9 @@ class PlanManager {
       day: "day-over-day",
       month: "month-over-month",
       year: "year-over-year",
-      dayofweek: "across weekdays",
-      onlymonth: "across months (over all years)",
-      onlyday: "across days days (over all years)"
+      dayofweek: "across days of the week",
+      onlyday: "across days of the month",
+      onlymonth: "across months of the year",
     }
 
     return {
